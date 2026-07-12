@@ -1,24 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Award, ExternalLink, ChevronLeft, ChevronRight, RefreshCw, Shield } from 'lucide-react';
+import { Search, Award, ChevronLeft, ChevronRight, RefreshCw, Shield } from 'lucide-react';
+import IDCard from '../../components/IDCard';
 
 const SHEET_ID   = import.meta.env.VITE_GOOGLE_SHEET_ID;
 const SHEET_NAME = import.meta.env.VITE_GOOGLE_SHEET_NAME || 'Certified';
 const PER_PAGE   = 12;
-
-const CERT_COLORS = {
-  'cloud practitioner': '#F97316',
-  'solutions architect': '#06B6D4',
-  'developer':           '#AD5CFF',
-  'sysops':              '#22C55E',
-  'ai practitioner':     '#EC4899',
-  'devops':              '#F59E0B',
-};
-
-function certColor(title = '') {
-  const t = title.toLowerCase();
-  for (const [k, c] of Object.entries(CERT_COLORS)) if (t.includes(k)) return c;
-  return '#AD5CFF';
-}
 
 function parseCSV(text) {
   const rows = [];
@@ -37,7 +23,6 @@ function parseCSV(text) {
   return rows;
 }
 
-// Group flat rows by enrolment → one student with array of certs
 function groupByStudent(rows) {
   const map = new Map();
   for (const row of rows) {
@@ -49,13 +34,15 @@ function groupByStudent(rows) {
         enrolment:  row.enrolment,
         department: row.department,
         institute:  row.institute,
+        linkedin:   row.linkedin_url || row.linkedin || '',
+        semester:   row.semester || '',
         certs: [],
       });
     }
     map.get(key).certs.push({
-      cert_title:  row.cert_title,
-      exam_date:   row.exam_date,
-      credly_link: row.credly_link,
+      cert_title:  row.cert_title || row.certification_title || '',
+      exam_date:   row.exam_date  || row.exam_date || '',
+      credly_link: row.credly_link || row.credly_link || '',
     });
   }
   return Array.from(map.values());
@@ -108,16 +95,18 @@ export default function CertifiedPage() {
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    return students.filter(st => {
-      const certNames = st.certs.map(c => c.cert_title.toLowerCase()).join(' ');
-      const matchQ = !q ||
-        st.name?.toLowerCase().includes(q) ||
-        st.enrolment?.toLowerCase().includes(q) ||
-        st.department?.toLowerCase().includes(q) ||
-        certNames.includes(q);
-      const matchC = certFilter === 'all' || st.certs.some(c => c.cert_title === certFilter);
-      return matchQ && matchC;
-    });
+    return students
+      .filter(st => {
+        const certNames = st.certs.map(c => (c.cert_title || '').toLowerCase()).join(' ');
+        const matchQ = !q ||
+          st.name?.toLowerCase().includes(q) ||
+          st.enrolment?.toLowerCase().includes(q) ||
+          st.department?.toLowerCase().includes(q) ||
+          certNames.includes(q);
+        const matchC = certFilter === 'all' || st.certs.some(c => c.cert_title === certFilter);
+        return matchQ && matchC;
+      })
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [students, query, certFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
@@ -266,92 +255,10 @@ export default function CertifiedPage() {
 
         {/* Cards */}
         {!loading && !error && paginated.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {paginated.map(st => {
-              const colors = [...new Set(st.certs.map(c => certColor(c.cert_title)))];
-              const primaryColor = colors[0];
-              // Multi-color gradient bar for multi-cert students
-              const barGradient = colors.length > 1
-                ? `linear-gradient(90deg, ${colors.join(', ')})`
-                : `linear-gradient(90deg, ${primaryColor}, ${primaryColor}50)`;
-
-              return (
-                <div key={st._key}
-                  className="rounded-xl border overflow-hidden"
-                  style={{ background: 'var(--card-bg)', borderColor: 'var(--border-muted)', transition: 'border-color 0.2s, transform 0.2s' }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = primaryColor + '60'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-muted)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
-
-                  {/* Multi-color bar */}
-                  <div className="h-1" style={{ background: barGradient }} />
-
-                  <div className="p-5 space-y-3">
-
-                    {/* Avatar + Name */}
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-white text-sm flex-shrink-0"
-                        style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}80)` }}>
-                        {st.name?.[0]?.toUpperCase() || '?'}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-sans font-semibold truncate" style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
-                            {st.name || '—'}
-                          </p>
-                          {/* Multi-cert badge */}
-                          {st.certs.length > 1 && (
-                            <span className="font-mono font-black flex-shrink-0 px-1.5 py-0.5 rounded"
-                              style={{ fontSize: '8px', background: '#AD5CFF20', color: '#AD5CFF' }}>
-                              ×{st.certs.length}
-                            </span>
-                          )}
-                        </div>
-                        {st.enrolment && (
-                          <p className="font-mono truncate" style={{ fontSize: '9px', color: 'var(--text-subtle)' }}>
-                            {st.enrolment}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* All cert badges */}
-                    <div className="space-y-1.5">
-                      {st.certs.map((cert, idx) => {
-                        const color = certColor(cert.cert_title);
-                        return (
-                          <div key={idx} className="px-3 py-2 rounded-lg flex items-center justify-between gap-2"
-                            style={{ background: color + '12', border: `1px solid ${color}30` }}>
-                            <div className="flex items-center gap-2 min-w-0">
-                              <Award size={11} style={{ color, flexShrink: 0 }} />
-                              <p className="font-mono font-bold leading-tight truncate" style={{ fontSize: '9px', color }}>
-                                {cert.cert_title || '—'}
-                              </p>
-                            </div>
-                            {cert.credly_link && (
-                              <a href={cert.credly_link} target="_blank" rel="noopener noreferrer"
-                                className="flex items-center gap-1 font-mono font-bold uppercase no-underline flex-shrink-0"
-                                style={{ fontSize: '8px', color }}
-                                onMouseEnter={e => e.currentTarget.style.opacity = '0.6'}
-                                onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
-                                <ExternalLink size={9} /> Badge
-                              </a>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Dept */}
-                    {st.department && (
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '8px', color: 'var(--text-subtle)', width: '56px' }}>Dept</span>
-                        <span className="font-sans truncate" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{st.department}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5" style={{ alignItems: 'stretch' }}>
+            {paginated.map(st => (
+              <IDCard key={st._key} student={st} />
+            ))}
           </div>
         )}
 

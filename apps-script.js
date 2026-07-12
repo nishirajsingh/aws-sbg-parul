@@ -1,51 +1,61 @@
 /**
  * Google Apps Script — AWS SBG Certified Students Sheet Writer
  *
- * HOW TO DEPLOY:
- * 1. Go to https://script.google.com → New Project
- * 2. Paste this entire file, replacing the default code
- * 3. Replace SHEET_ID below with your actual Sheet ID
- * 4. Click Deploy → New Deployment → Web App
+ * HOW TO DEPLOY / REDEPLOY:
+ * 1. Go to https://script.google.com → open your project (or New Project)
+ * 2. Paste this entire file, replacing all existing code
+ * 3. Click Deploy → New Deployment (or Manage Deployments → Edit → New Version)
+ *    - Type: Web App
  *    - Execute as: Me
  *    - Who has access: Anyone (anonymous)
- * 5. Copy the Web App URL → paste into VITE_APPS_SCRIPT_URL in .env
+ * 4. Copy the Web App URL → paste into VITE_APPS_SCRIPT_URL in .env
  *
- * RE-DEPLOY after any code change:
- *   Deploy → Manage Deployments → Edit → New Version → Deploy
+ * IMPORTANT: Every time you change this code you MUST create a New Version
+ * in Manage Deployments — otherwise the old code keeps running.
  */
 
-const SHEET_ID = '1aTgU6R6zmh5ngtZQAQE-smz0XevxiRYBdhkOyYU5ZM8'; // ✅ already set
+const SHEET_ID = '1aTgU6R6zmh5ngtZQAQE-smz0XevxiRYBdhkOyYU5ZM8';
 const TAB_NAME = 'Certified';
 
 const COLUMNS = [
-  'name', 'email', 'parul_email', 'mobile', 'enrolment',
-  'department', 'semester', 'institute', 'exam_date',
-  'cert_title', 'credly_link', 'result_url', 'photo_url'
+  'role_type', 'name', 'email', 'parul_email', 'mobile', 'enrolment',
+  'department', 'semester', 'designation', 'institute', 'linkedin_url',
+  'exam_date', 'cert_title', 'credly_link', 'result_url', 'submitted_at',
 ];
 
-// Browser calls this via GET ?name=...&cert_title=... (no CORS issues)
+const HEADERS = [
+  'Role Type', 'Name', 'Email', 'Parul Email', 'Mobile', 'Enrolment No',
+  'Department', 'Semester', 'Designation', 'Institute', 'LinkedIn URL',
+  'Exam Date', 'Certification Title', 'Credly Link', 'Result URL', 'Submitted At',
+];
+
 function doGet(e) {
   try {
     const ss    = SpreadsheetApp.openById(SHEET_ID);
     let sheet   = ss.getSheetByName(TAB_NAME);
-
-    // Create the tab if it doesn't exist
     if (!sheet) sheet = ss.insertSheet(TAB_NAME);
 
-    // Add header row if sheet is empty
     if (sheet.getLastRow() === 0) {
-      sheet.appendRow(COLUMNS);
-      sheet.getRange(1, 1, 1, COLUMNS.length)
+      sheet.appendRow(HEADERS);
+      sheet.getRange(1, 1, 1, HEADERS.length)
         .setFontWeight('bold')
         .setBackground('#232F3E')
         .setFontColor('#FF9900');
+      sheet.setFrozenRows(1);
     }
 
-    // Append the row from query params
-    sheet.appendRow(COLUMNS.map(col => e.parameter[col] || ''));
+    const p = e.parameter;
+    const row = COLUMNS.map(col =>
+      col === 'submitted_at'
+        ? new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+        : (p[col] || '')
+    );
+
+    sheet.appendRow(row);
+    sheet.autoResizeColumns(1, HEADERS.length);
 
     return ContentService
-      .createTextOutput(JSON.stringify({ status: 'ok' }))
+      .createTextOutput(JSON.stringify({ status: 'ok', name: p.name || '' }))
       .setMimeType(ContentService.MimeType.JSON);
 
   } catch (err) {
@@ -55,17 +65,26 @@ function doGet(e) {
   }
 }
 
-// ── Manual test — run this in Apps Script editor to verify everything works ──
+// ── Run this manually in Apps Script editor to test without deploying ──
 function testWrite() {
   const e = {
     parameter: {
-      name: 'Test Student', email: 'test@example.com', parul_email: 'test@paruluniversity.ac.in',
-      mobile: '9876543210', enrolment: '22012345678901', department: 'Computer Engineering',
-      semester: '5', institute: 'PIET', exam_date: '2025-01-15',
-      cert_title: 'AWS Certified Cloud Practitioner', credly_link: 'https://credly.com/test',
-      result_url: '', photo_url: ''
+      role_type: 'student',
+      name: 'Test Student',
+      email: 'test@example.com',
+      parul_email: 'test@paruluniversity.ac.in',
+      mobile: '9876543210',
+      enrolment: '22012345678901',
+      department: 'CSE',
+      semester: '5',
+      designation: '',
+      institute: 'PIET – Parul Institute of Engineering & Technology',
+      linkedin_url: 'https://linkedin.com/in/test',
+      exam_date: '2025-01-15',
+      cert_title: 'AWS Certified Cloud Practitioner (CLF-C02)',
+      credly_link: 'https://credly.com/badges/test',
+      result_url: '',
     }
   };
-  const result = doGet(e);
-  Logger.log(result.getContent());
+  Logger.log(doGet(e).getContent());
 }

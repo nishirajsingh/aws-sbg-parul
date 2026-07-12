@@ -55,7 +55,12 @@ function CertCard({ c, onStatusChange }) {
   const deleteRecord = async () => {
     if (!confirm(`Reject and delete "${c.name}"'s submission? This cannot be undone.`)) return;
     setSaving(true);
-    await supabase.from('certifications').delete().eq('id', c.id);
+    const { error } = await supabase.from('certifications').delete().eq('id', c.id);
+    if (error) {
+      setExportMsg(`Delete failed: ${error.message}`);
+      setSaving(false);
+      return;
+    }
     onStatusChange();
   };
 
@@ -89,14 +94,17 @@ function CertCard({ c, onStatusChange }) {
 
           <div className="grid grid-cols-2 gap-x-4 gap-y-2">
             {[
-              ['Email',      c.email],
+              ['Type',        c.role_type],
+              ['Email',       c.email],
               ['Parul Email', c.parul_email],
-              ['Mobile',     c.mobile],
-              ['Department', c.department],
-              ['Semester',   c.semester],
-              ['Enrolment',  c.enrolment],
-              ['Exam Date',  c.exam_date],
-              ['Institute',  c.institute],
+              ['Mobile',      c.mobile],
+              ['Enrolment',   c.enrolment],
+              ['Department',  c.department],
+              ['Semester',    c.semester],
+              ['Designation', c.designation],
+              ['Institute',   c.institute],
+              ['Exam Date',   c.exam_date],
+              ['LinkedIn',    c.linkedin_url],
             ].filter(([, v]) => v).map(([label, value]) => (
               <div key={label}>
                 <p className="font-mono font-bold uppercase" style={{ fontSize: '8px', color: 'var(--text-subtle)' }}>{label}</p>
@@ -123,11 +131,11 @@ function CertCard({ c, onStatusChange }) {
                 <FileText size={10} /> View Result
               </a>
             )}
-            {c.photo_url && (
-              <a href={c.photo_url} target="_blank" rel="noreferrer"
+            {c.linkedin_url && (
+              <a href={c.linkedin_url} target="_blank" rel="noreferrer"
                 className="inline-flex items-center gap-1.5 font-mono font-bold uppercase no-underline transition-colors"
-                style={{ fontSize: '9px', color: '#22C55E' }}>
-                <Image size={10} /> View Photo
+                style={{ fontSize: '9px', color: '#0A66C2' }}>
+                <ExternalLink size={10} /> LinkedIn
               </a>
             )}
           </div>
